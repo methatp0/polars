@@ -66,11 +66,13 @@ fn convert_dtype(dtype: ArrowDataType) -> ArrowDataType {
 
 pub fn schema_to_metadata_key(schema: &ArrowSchema) -> KeyValue {
     let serialized_schema = if schema.iter_values().any(|field| field.dtype.is_nested()) {
-        let schema = schema
+        let schema_metadata = schema.metadata().clone();
+        let mut schema = schema
             .iter_values()
             .map(|field| convert_field(field.clone()))
             .map(|x| (x.name.clone(), x))
-            .collect();
+            .collect::<ArrowSchema>();
+        *schema.metadata_mut() = schema_metadata;
         schema_to_bytes(&schema, &default_ipc_fields(schema.iter_values()), None)
     } else {
         schema_to_bytes(schema, &default_ipc_fields(schema.iter_values()), None)
