@@ -2164,3 +2164,33 @@ def test_scan_parquet_set_sorted_expr_keeps_order(tmp_path: Path) -> None:
 
     assert_frame_equal(q_group_by.collect(engine="streaming"), expected_group_by)
     assert_frame_equal(q_join.collect(engine="streaming"), expected_join)
+
+
+@pytest.mark.write_disk
+def test_sink_parquet_arrow_schema_metadata_with_list(tmp_path: Path) -> None:
+    schema = pa.schema(
+        [
+            pa.field("__index__", pa.int64(), metadata={"tsdf.type": "timestamp"}),
+            pa.field("point", pa.int64(), metadata={"tsdf.type": "data"}),
+            pa.field(
+                "listed",
+                pa.large_list(pa.int64()),
+                metadata={"tsdf.type": "data"},
+            ),
+        ],
+        metadata={"Testing": "123"},
+    )
+    lf = pl.LazyFrame(
+        {
+            "__index__": [1, 2, 3],
+            "point": [4, 5, 6],
+            "listed": [(0, 1), (0, 1), (0, 1)],
+        }
+    )
+    path = tmp_path / "test.parquet"
+
+    lf.sink_parquet(path, arrow_schema=schema)
+
+    written_schema = pq.read_schema(path)
+    assert written_schema.metadata == {b"Testing": b"123"}
+    assert written_schema.field("listed").metadata == {b"tsdf.type": b"data"}
